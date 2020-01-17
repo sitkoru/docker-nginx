@@ -6,7 +6,7 @@ ARG ALPINE_VERSION=3.8
 FROM alpine:$ALPINE_VERSION as pagespeed
 
 # Check https://github.com/apache/incubator-pagespeed-mod/tags
-ARG MOD_PAGESPEED_TAG=v1.13.35.2
+ARG MOD_PAGESPEED_TAG=master
 
 RUN apk add --no-cache \
     apache2-dev \
@@ -76,10 +76,11 @@ RUN mkdir -p /usr/src/ngxpagespeed/psol/lib/Release/linux/x64 && \
 FROM alpine:$ALPINE_VERSION AS nginx
 
 # Check https://github.com/apache/incubator-pagespeed-ngx/tags
-ARG NGX_PAGESPEED_TAG=v1.13.35.2-stable
+ARG NGX_PAGESPEED_TAG=36
 
 # Check http://nginx.org/en/download.html for the latest version.
-ARG NGINX_VERSION=1.14.1
+ARG NGINX_VERSION=1.16.1
+# https://github.com/vozlt/nginx-module-vts/tags
 ARG VTS_VERSION=0.1.18
 ARG NGINX_PGPKEY=520A9993A1C052F8
 ARG NGINX_BUILD_CONFIG="\
@@ -168,7 +169,7 @@ RUN wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz \
 
 COPY --from=pagespeed /usr/src/ngxpagespeed /usr/src/ngxpagespeed/
 
-RUN wget -O - https://github.com/vozlt/nginx-module-vts/archive/v${VTS_VERSION}.tar.gz --progress=bar  --tries=3 | tar zxf - -C /tmp
+RUN wget -O - https://github.com/vozlt/nginx-module-vts/archive/v${VTS_VERSION}.tar.gz  --tries=3 | tar zxf - -C /tmp
 
 WORKDIR /usr/src/nginx
 
@@ -192,19 +193,10 @@ RUN rm -rf /etc/nginx/html/ && \
     /usr/lib/nginx/modules/*.so \
     ;
 
-COPY conf/nginx.conf /etc/nginx/nginx.conf
-COPY conf/nginx.vh.default.conf /etc/nginx/conf.d/default.conf
-COPY pagespeed.png /usr/share/nginx/html/
-
-
 ##########################################
 # Combine everything with minimal layers #
 ##########################################
 FROM alpine:$ALPINE_VERSION
-LABEL maintainer="Nico Berlee <nico.berlee@on2it.net>" \
-    version.mod-pagespeed="1.13.35.2" \
-    version.nginx="1.14.1" \
-    version.ngx-pagespeed="1.13.35.2"
 
 COPY --from=pagespeed /usr/bin/envsubst /usr/local/bin
 COPY --from=nginx /usr/sbin/nginx /usr/sbin/nginx
@@ -218,10 +210,12 @@ RUN apk --no-cache upgrade && \
     | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
     | xargs apk add --no-cache \
     && \
-    apk add --no-cache tzdata
+    apk add --no-cache tzdata openssl bash
 
 RUN addgroup -S nginx && \
     adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G nginx nginx && \
+    addgroup -S www-data && \
+    adduser -D -S -h /var/cache/nginx -s /sbin/nologin -G www-data www-data && \
     install -g nginx -o nginx -d /var/cache/ngx_pagespeed && \
     mkdir -p /var/log/nginx && \
     ln -sf /dev/stdout /var/log/nginx/access.log && \
