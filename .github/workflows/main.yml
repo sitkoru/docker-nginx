@@ -51,6 +51,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: /tmp/.buildx-cache
+          driver-opts: image=moby/buildkit:master
           key: ${{ runner.os }}-buildx-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-buildx-
