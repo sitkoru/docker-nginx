@@ -79,7 +79,7 @@ FROM alpine:$ALPINE_VERSION AS nginx
 ARG NGX_PAGESPEED_TAG=36
 
 # Check http://nginx.org/en/download.html for the latest version.
-ARG NGINX_VERSION=1.16.1
+ARG NGINX_VERSION=1.19.2
 # https://github.com/vozlt/nginx-module-vts/tags
 ARG VTS_VERSION=0.1.18
 ARG NGINX_PGPKEY=520A9993A1C052F8
