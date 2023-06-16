@@ -1,14 +1,10 @@
-FROM nginx:1.24.0
+FROM nginx:1.24.0 as build
 
-ENV NGINX_VERSION 1.24.0
-ENV NPS_VERSION 36
-ENV NPSOL_VERSION 1.14.36.1-stable
-ENV OSSL_VERSION 1.1.1g
 ENV CODENAME bullseye
-ENV VTS_VERSION=0.1.18
+ENV NGINX_VERSION 1.24.0
 
 RUN apt-get update \
-    && apt-get install -y build-essential zlib1g-dev libpcre3 libpcre3-dev unzip wget libcurl4-openssl-dev libjansson-dev uuid-dev libbrotli-dev
+    && apt-get install -y build-essential zlib1g-dev libpcre3 libpcre3-dev unzip wget libcurl4-openssl-dev libjansson-dev uuid-dev libbrotli-dev git
 
 RUN wget http://nginx.org/keys/nginx_signing.key \
     && apt-key add nginx_signing.key \
@@ -19,12 +15,16 @@ RUN wget http://nginx.org/keys/nginx_signing.key \
 
 WORKDIR /nginx
 
+ENV NPSOL_VERSION focal
+ENV OSSL_VERSION 1.1.1g
+ENV VTS_VERSION=0.1.18
+
 ADD ./build.sh build.sh
 
 RUN chmod a+x ./build.sh && ./build.sh
 RUN apt-get download libbrotli1
 
 
-FROM nginx:1.24.0
-COPY --from=0 /nginx/nginx_1.24.0-1~buster_amd64.deb /nginx/libbrotli1*.deb /_pkgs/
+FROM nginx:1.24.0 as publish
+COPY --from=build /nginx/nginx_1.24.0-1~bullseye_amd64.deb /nginx/libbrotli1*.deb /_pkgs/
 RUN dpkg --install /_pkgs/*.deb && rm -rf /_pkgs
