@@ -4,7 +4,7 @@ ENV NGINX_VERSION 1.24.0
 ENV NPS_VERSION 36
 ENV NPSOL_VERSION 1.13.35.2-stable
 ENV OSSL_VERSION 1.1.1g
-ENV CODENAME bullsyey
+ENV CODENAME bullseye
 ENV VTS_VERSION=0.1.18
 
 RUN apt-get update \
@@ -12,8 +12,8 @@ RUN apt-get update \
 
 RUN wget http://nginx.org/keys/nginx_signing.key \
     && apt-key add nginx_signing.key \
-    && echo "deb http://nginx.org/packages/mainline/debian/ ${CODENAME} nginx" >> /etc/apt/sources.list \
-    && echo "deb-src http://nginx.org/packages/mainline/debian/ ${CODENAME} nginx" >> /etc/apt/sources.list \
+    && echo "deb http://nginx.org/packages/debian/ ${CODENAME} nginx" >> /etc/apt/sources.list \
+    && echo "deb-src http://nginx.org/packages/debian/ ${CODENAME} nginx" >> /etc/apt/sources.list \
     && apt-get update \
     && apt-get build-dep -y nginx=${NGINX_VERSION}-1
 
