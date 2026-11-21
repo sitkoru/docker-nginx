@@ -1,30 +1,31 @@
-FROM nginx:1.24.0 as build
+FROM nginx:1.30.7@sha256:7fad6c0dff97965adbddf28027d934b111fc0221a554315dc274712f3fba24d3 AS nginx-base
 
-ENV CODENAME bullseye
-ENV NGINX_VERSION 1.24.0
+FROM nginx-base AS modules
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential libbrotli-dev libpcre2-dev libssl-dev zlib1g-dev
+COPY build.sh /build.sh
+RUN sh /build.sh
 
-RUN apt-get update \
-    && apt-get install -y build-essential zlib1g-dev libpcre3 libpcre3-dev unzip wget libcurl4-openssl-dev libjansson-dev uuid-dev libbrotli-dev git
+FROM nginx-base
+COPY --from=modules /usr/src/nginx/objs/*.so /usr/lib/nginx/modules/
 
-RUN wget http://nginx.org/keys/nginx_signing.key \
-    && apt-key add nginx_signing.key \
-    && echo "deb http://nginx.org/packages/debian/ ${CODENAME} nginx" >> /etc/apt/sources.list \
-    && echo "deb-src http://nginx.org/packages/debian/ ${CODENAME} nginx" >> /etc/apt/sources.list \
-    && apt-get update \
-    && apt-get build-dep -y nginx=${NGINX_VERSION}-1
-
-WORKDIR /nginx
-
-ENV NPSOL_VERSION focal
-ENV OSSL_VERSION 1.1.1g
-ENV VTS_VERSION=0.1.18
-
-ADD ./build.sh build.sh
-
-RUN chmod a+x ./build.sh && ./build.sh
-RUN apt-get download libbrotli1
-
-
-FROM nginx:1.24.0 as publish
-COPY --from=build /nginx/nginx_1.24.0-1~bullseye_amd64.deb /nginx/libbrotli1*.deb /_pkgs/
-RUN dpkg --install /_pkgs/*.deb && rm -rf /_pkgs
+RUN set -eu; \
+    export DEBIAN_FRONTEND=noninteractive; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends gpg; \
+    curl -fsSL https://packages.modpagespeed.com/pubkey.gpg -o /tmp/modpagespeed.gpg; \
+    fingerprint="$(gpg --batch --show-keys --with-colons /tmp/modpagespeed.gpg \
+        | awk -F: '$1 == "pub" { primary = 1; next } primary && $1 == "fpr" { print $10; primary = 0 }')"; \
+    test "$fingerprint" = DF00E296BE9141CEA5411346F50D6054F10712A0; \
+    gpg --batch --dearmor -o /usr/share/keyrings/modpagespeed.gpg /tmp/modpagespeed.gpg; \
+    echo 'deb [signed-by=/usr/share/keyrings/modpagespeed.gpg] https://packages.modpagespeed.com/apt trixie main' \
+        > /etc/apt/sources.list.d/modpagespeed.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        "nginx-module-pagespeed-nginxorg=2.9.2-r1+ngx${NGINX_VERSION}~trixie"; \
+    printf 'load_module modules/%s.so;\n' \
+        ngx_http_brotli_filter_module ngx_http_brotli_static_module ngx_http_vhost_traffic_status_module \
+        > /etc/nginx/modules-enabled/60-sitkoru.conf; \
+    sed -i '1i include /etc/nginx/modules-enabled/*.conf;' /etc/nginx/nginx.conf; \
+    nginx -t; \
+    rm -rf /var/lib/apt/lists/* /tmp/modpagespeed.gpg /root/.gnupg

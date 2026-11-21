@@ -1,28 +1,27 @@
-#!/bin/bash
-mkdir -p /nginx
-cd /nginx
-apt-get source nginx=${NGINX_VERSION}-1
-mkdir -p nginx-${NGINX_VERSION}/debian/modules
-cd nginx-${NGINX_VERSION}/debian/modules
+#!/bin/sh
+set -eu
 
-# https://github.com/apache/incubator-pagespeed-ngx/issues/1760
-git clone --depth=1 https://github.com/apache/incubator-pagespeed-ngx.git
-wget http://www.tiredofit.nl/psol-${NPSOL_VERSION}.tar.xz
-tar xvf psol-${NPSOL_VERSION}.tar.xz
-mv psol incubator-pagespeed-ngx
+cd /usr/src
 
-cd /nginx/nginx-${NGINX_VERSION}
-wget https://www.openssl.org/source/openssl-${OSSL_VERSION}.tar.gz
-tar -xf openssl-${OSSL_VERSION}.tar.gz
+curl -fsSL "https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz" -o nginx.tar.gz
+echo '2565b5c837050e958f70fb0f73c48e2bca4542ad349fd356f46fb0c72610bc6e  nginx.tar.gz' | sha256sum -c -
+mkdir nginx
+tar -xzf nginx.tar.gz --strip-components=1 -C nginx
 
-cd /nginx/nginx-${NGINX_VERSION}
-wget -O brotli.tar.gz https://github.com/google/ngx_brotli/archive/master.tar.gz
-tar -xf brotli.tar.gz
+curl -fsSL https://codeload.github.com/google/ngx_brotli/tar.gz/53e0fb55f250f48fe80c0ddbf6c0f7103cdbaae1 -o brotli.tar.gz
+echo '27a4352dae4ba4922f9f013f3f0d02359aceeef2701872efa42849c3ba05457a  brotli.tar.gz' | sha256sum -c -
+mkdir brotli
+tar -xzf brotli.tar.gz --strip-components=1 -C brotli
+# Compile against Debian's Brotli headers and link to its libbrotli1.
+mkdir -p brotli/deps/brotli/c
+ln -s /usr/include brotli/deps/brotli/c/include
 
-wget -O vts.tar.gz https://github.com/vozlt/nginx-module-vts/archive/v${VTS_VERSION}.tar.gz
-tar -xf vts.tar.gz
+curl -fsSL https://codeload.github.com/vozlt/nginx-module-vts/tar.gz/refs/tags/v0.2.7 -o vts.tar.gz
+echo '0003bfa57da2106367fdc3f87760910c046e7df5545db73c880fc2b80350b14c  vts.tar.gz' | sha256sum -c -
+mkdir vts
+tar -xzf vts.tar.gz --strip-components=1 -C vts
 
-sed -i "0,/CFLAGS\=\\\"\\\"/{/CFLAGS\=\\\"\\\"/ s/$/ --add-module=\/nginx\/nginx-${NGINX_VERSION}\/debian\/modules\/incubator-pagespeed-ngx ${PS_NGX_EXTRA_FLAGS} --add-module=\/nginx\/nginx-${NGINX_VERSION}\/ngx_brotli-master --add-module=\/nginx\/nginx-${NGINX_VERSION}\/nginx-module-vts-${VTS_VERSION} --with-openssl=\/nginx\/nginx-${NGINX_VERSION}\/openssl-${OSSL_VERSION}/}" /nginx/nginx-${NGINX_VERSION}/debian/rules
-sed -i "s/CFLAGS\=\\\"\\\"/CFLAGS\=\\\"-Wno-missing-field-initializers\\\"/" /nginx/nginx-${NGINX_VERSION}/debian/rules
-
-dpkg-buildpackage -b
+cd nginx
+./configure --with-compat --with-http_ssl_module --with-http_v2_module --with-http_v3_module \
+    --add-dynamic-module=../brotli --add-dynamic-module=../vts
+make -j2 modules
